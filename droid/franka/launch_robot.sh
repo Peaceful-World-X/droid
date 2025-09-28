@@ -1,4 +1,4 @@
-source ~/miniconda3/etc/profile.d/conda.sh
+source ~/anaconda3/etc/profile.d/conda.sh
 conda activate polymetis-local
 pkill -9 run_server
 pkill -9 franka_panda_cl
