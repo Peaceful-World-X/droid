@@ -10,9 +10,15 @@
     Date: 2025-09-29
     Author: Xue Wenyao
 """
+# ==================================================================
+# ⚪白色:交互       Franka 可以安全操作
+# 🔵蓝色:已激活     Franka 已启用移动功能，随时可以开始移动
+# 🟢绿色:自动执行   Franka 正在执行自动程序并独立移动
+# 🟡橙色:已锁定     Franka 以机械方式锁定或无法使用
+# 🟣粉色:冲突       Franka 接到冲突启用信号
+# 🔴红色:错误       Franka 发生错误
+# ==================================================================
 import math
-import socket
-from functools import wraps
 from typing import Dict, List, Optional, Tuple
 
 import yaml
@@ -20,26 +26,27 @@ from common import setup_logger
 from scipy.spatial.transform import Rotation
 
 # ————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
+import socket
 ENABLE_REAL = socket.gethostname() == "cytoderm"
 if ENABLE_REAL:
     print(f"🎯 使用真实模式")
-    from franky import Affine                   # 仿射变换类，用于表示机器人的位置和姿态（包括平移和旋转）
-    from franky import CartesianMotion          # 笛卡尔空间运动类，用于定义机器人末端执行器在笛卡尔坐标系中的运动
-    from franky import CartesianVelocityMotion  # 笛卡尔速度运动类，用于控制机器人末端执行器在笛卡尔空间的速度
-    from franky import Duration                 # 持续时间类，用于指定运动的时间长度
-    from franky import JointMotion              # 关节运动类，用于定义机器人各关节的运动（关节空间运动）
-    from franky import JointStopMotion          # 关节停止运动类，用于让机器人关节平滑停止运动
-    from franky import JointVelocityMotion      # 关节速度运动类，用于控制机器人各关节的速度
-    from franky import ReferenceType            # 参考系类型枚举，用于指定运动参考坐标系（如世界坐标系或末端执行器坐标系）
     from franky import Robot                    # 机器人类，主要的机器人控制接口，用于连接和控制 Franka 机器人
+    from franky import CartesianMotion          # 笛卡尔运动类，用于定义机器人末端执行器在笛卡尔坐标系中的运动
+    from franky import CartesianVelocityMotion  # 笛卡尔运动类，用于控制机器人末端执行器在笛卡尔空间的速度
+    from franky import JointMotion              # 关节运动类，用于定义机器人各关节的运动（关节空间运动）
+    from franky import JointStopMotion          # 关节运动类，用于让机器人关节平滑停止运动
+    from franky import JointVelocityMotion      # 关节运动类，用于控制机器人各关节的速度
+    from franky import Duration                 # 持续时间类，用于指定运动的时间长度
+    from franky import ReferenceType            # 参考系类型枚举，用于指定运动参考坐标系（如世界坐标系或末端执行器坐标系）
     from franky import Twist                    # 扭转类，用于表示空间中的速度（线速度和角速度）
+    from franky import Affine                   # 仿射变换类，用于表示机器人的位置和姿态（包括平移和旋转）
     from pyrobotiqgripper import RobotiqGripper
 else:
     print(f"🎭 使用仿真模式")
     from simu.robosuite_r7arm import *
     from simu.robosuite_r7arm import RobotiqGripper
 # ————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
-
+from functools import wraps
 def connection_required(func):
     """装饰器：检查机器人机械臂和夹爪的连接状态"""
     @wraps(func)
