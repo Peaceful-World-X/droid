@@ -1,0 +1,57 @@
+# 仿真环境配置
+environment:
+  env_name: "Lift"                    # 设置仿真环境
+  robots: "Panda"                     # 设置机器人
+  gripper_types: "Robotiq85Gripper"   # 夹爪类型
+  control_freq: 30                    # 控制频率
+  has_renderer: true                  # 是否使用渲染环境
+  render_camera: "sideview"           # 哪个相机渲染
+  has_offscreen_renderer: false       # 是否使用离线的渲染环境
+  use_camera_obs: false               # 是否使用相机视角观测
+
+# 相机配置
+camera:
+  names: ["frontview", "sideview", "robot0_robotview", "robot0_eye_in_hand"]  # 多视角离线渲染
+  heights: 480  # 相机高度
+  widths: 640   # 相机宽度
+  depths: false # 是否需要渲染深度
+
+# 控制器配置
+controller:
+  # 末端位姿控制器（默认使用，因为 robosuite 对此支持最好）
+  default:
+    type: "OSC_POSE"
+    input_max: 1
+    input_min: -1
+    output_max: [0.05, 0.05, 0.05, 0.5, 0.5, 0.5]
+    output_min: [-0.05, -0.05, -0.05, -0.5, -0.5, -0.5]
+    kp: 150
+    damping: 1
+    impedance_mode: "fixed"
+    kp_limits: [0, 300]
+    damping_limits: [0, 10]
+    position_limits: null
+    orientation_limits: null
+    uncouple_pos_ori: true
+    control_delta: true
+    interpolation: null
+    ramp_ratio: 0.2 # 控制参数
+
+control:
+  simulation_freq: 20  # 仿真循环频率 Hz
+  default_mode: "joint_position"  # 默认控制模式
+  action_limits:
+    joint_position: 0.1  # 关节位置动作限制
+    joint_velocity: 0.2  # 关节速度动作限制
+    ee_position: 0.1     # 末端位置动作限制
+    ee_velocity: 0.2     # 末端速度动作限制
+
+# Franka 配置
+franka_r7arm:
+  host: "10.0.10.2"
+  init_joint_angles: [0.0, -0.785, 0.0, -2.356, 0.0, 1.571, 0.785]
+  position_ranges:
+    x: [0.1, 0.8]
+    y: [-0.5, 0.5]
+    z: [0.1, 0.8]
+  gripper_open_position: 85

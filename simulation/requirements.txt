@@ -1,0 +1,10 @@
+python>=3.8.1
+
+numpy
+pyyaml
+robosuite               # 仿真库
+# polymetis             # Droid数据集franka控制接口
+franky-control          # franka接口
+minimalmodbus           # 夹爪接口驱动
+pyRobotiqGripper        # 夹爪接口
+pyrealsense2            # 相机接口
