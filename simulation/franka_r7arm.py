@@ -20,11 +20,11 @@
 # ==================================================================
 import math
 import socket
+import time
 from functools import wraps
 from typing import Dict, List, Optional, Tuple
 
 import yaml
-import time
 from common import setup_logger
 from scipy.spatial.transform import Rotation
 
@@ -37,9 +37,9 @@ if ENABLE_REAL:
     from franky import JointMotion  # 关节运动类，用于定义机器人各关节的运动（关节空间运动）
     from franky import JointStopMotion  # 关节运动类，用于让机器人关节平滑停止运动
     from franky import ReferenceType  # 参考系类型枚举，用于指定运动参考坐标系（如世界坐标系或末端执行器坐标系）
-    from franky import RelativeDynamicsFactor
     from franky import Robot  # 机器人类，主要的机器人控制接口，用于连接和控制 Franka 机器人
     from franky import Twist  # 扭转类，用于表示空间中的速度（线速度和角速度）
+    from franky import RelativeDynamicsFactor
     from pyrobotiqgripper import RobotiqGripper
 else:
     print(f"🎭 使用仿真模式")
@@ -101,10 +101,12 @@ class FrankaR7arm:
             self.gripper.activate()
             if self.gripper.isActivated():
                 self.gripper.calibrate(0, 100)
-                self.gripper.open()
                 self.logger.info("✅ Robotiq 夹爪连接成功！")
             else:
                 self.logger.info("❌ Robotiq 夹爪连接失败！")
+
+            # 机械臂回到初始位置
+            self.return_to_initial_position()
 
             self.is_connected = True
             return True
@@ -124,20 +126,26 @@ class FrankaR7arm:
     @connection_required
     def get_current_status(self, print_flag=0) -> Optional[Dict[str, any]]:
         """获取机器人当前状态：
-            - 末端位姿 (Affine)
-            - 末端速度 (Twist: linear + angular)
-            - 关节位置/速度
+            - 末端位姿
+            - 末端速度
+            - 关节位置
+            - 关节速度
             - 夹爪位置
         """
         try:
             # 末端位姿
             cartesian_state = self.robot.current_cartesian_state
             ee_pose: Affine = cartesian_state.pose.end_effector_pose
+            trans = List[float] = ee_pose.translation   # [x, y, z]
+            quat = List[float] = ee_pose.quaternion  # [x, y, z, w]
+            euler = Rotation.from_quat(ee_pose.quaternion).as_euler('xyz')  # [roll, pitch, yaw] in rad
+            ee_pose_6d = [*trans, *euler]
 
             # 末端速度
             ee_twist: Twist = cartesian_state.velocity.end_effector_twist
             linear_vel: List[float] = ee_twist.linear   # [vx, vy, vz] in m/s
             angular_vel: List[float] = ee_twist.angular # [wx, wy, wz] in rad/s
+            ee_twist_6d = [*linear_vel, *angular_vel]
 
             # 关节状态
             joint_state = self.robot.current_joint_state
@@ -151,41 +159,35 @@ class FrankaR7arm:
 
             # 状态字典
             status =  {
-                "ee_pose": ee_pose,
-                "ee_velocity": [*linear_vel, *angular_vel],
+                "ee_pose": ee_pose_6d,
+                "ee_velocity": ee_twist_6d,
                 "joint_positions": joint_positions,
                 "joint_velocities": joint_velocities,
                 "gripper_position": gripper_position,
             }
             if print_flag==1:
-                quat = ee_pose.quaternion
-                trans = ee_pose.translation
                 print(f"末端位姿: x ={trans[0]:6.3f} , y ={trans[1]:6.3f} , z ={trans[2]:6.3f} , "
                       f"qx={quat[0]:6.3f} , qy={quat[1]:6.3f} , qz={quat[2]:6.3f} , qw={quat[3]:6.3f}")
-                vel = status['ee_velocity']
-                print(f"末端速度: vx={vel[0]:6.3f} , vy={vel[1]:6.3f} , vz={vel[2]:6.3f} , "
-                      f"wx={vel[3]:6.3f} , wy={vel[4]:6.3f} , wz={vel[5]:6.3f}")
-                joints_pos = [f"J{i+1}={angle:6.3f}" for i, angle in enumerate(status['joint_positions'])]
+                print(f"末端速度: vx={linear_vel[0]:6.3f} , vy={linear_vel[1]:6.3f} , vz={linear_vel[2]:6.3f} , "
+                      f"wx={angular_vel[0]:6.3f} , wy={angular_vel[1]:6.3f} , wz={angular_vel[2]:6.3f}")
+                joints_pos = [f"J{i+1}={angle:6.3f}" for i, angle in enumerate(joint_positions)]
                 print(f"关节位置: {' , '.join(joints_pos)}")
-                joints_vel = [f"J{i+1}={vel:6.3f}" for i, vel in enumerate(status['joint_velocities'])]
+                joints_vel = [f"J{i+1}={vel:6.3f}" for i, vel in enumerate(joint_velocities)]
                 print(f"关节速度: {' , '.join(joints_vel)}")
                 print(f"夹爪张开: {status['gripper_position']*100:.2f}%")
 
             elif print_flag==2:
-                quat = ee_pose.quaternion
-                trans = ee_pose.translation
                 print(f"末端位姿: x = {trans[0]:6.3f} , y = {trans[1]:6.3f} , z = {trans[2]:6.3f} , "
                       f"qx= {quat[0]:6.3f} , qy= {quat[1]:6.3f} , qz= {quat[2]:6.3f} , qw= {quat[3]:6.3f}")
-                vel = status['ee_velocity']
-                print(f"末端速度: vx= {vel[0]:6.3f} , vy= {vel[1]:6.3f} , vz= {vel[2]:6.3f} , "
-                      f"wx= {math.degrees(vel[3]):6.1f} , wy= {math.degrees(vel[4]):6.1f} , wz= {math.degrees(vel[5]):6.1f}")
-                joints_pos = [f"J{i+1}= {math.degrees(angle):6.1f}" for i, angle in enumerate(status['joint_positions'])]
+                print(f"末端速度: vx= {linear_vel[0]:6.3f} , vy={linear_vel[1]:6.3f} , vz={linear_vel[2]:6.3f} , "
+                      f"wx= {math.degrees(angular_vel[0]):6.1f} , wy= {math.degrees(angular_vel[1]):6.1f} , wz= {math.degrees(angular_vel[2]):6.1f}")
+                joints_pos = [f"J{i+1}= {math.degrees(angle):6.1f}" for i, angle in enumerate(joint_positions)]
                 print(f"关节位置: {' , '.join(joints_pos)}")
-                joints_vel = [f"J{i+1}= {math.degrees(vel):6.1f}" for i, vel in enumerate(status['joint_velocities'])]
+                joints_vel = [f"J{i+1}= {math.degrees(vel):6.1f}" for i, vel in enumerate(joint_velocities)]
                 print(f"关节速度: {' , '.join(joints_vel)}")
-                print(f"夹爪张开: {status['gripper_position']*100:6.1f}%") 
+                print(f"夹爪张开: {status['gripper_position']*100:6.1f}%")
             return status
-        
+
         except Exception as e:
             self.logger.error(f"❌ 获取机器人状态失败: {e}")
             return None
@@ -197,7 +199,6 @@ class FrankaR7arm:
             self.gripper.open()
         try:
             target_radians = self.robot_init_joint if target_position is None else target_position
-            self.logger.info(f"🏠 移动到初始位置: {[f'{math.degrees(q):.1f}°' for q in target_radians]}")
             self.robot.move(JointMotion(target_radians))
             return True
         except Exception as e:
@@ -266,7 +267,7 @@ class FrankaR7arm:
         except Exception as e:
             self.logger.error(f"❌ 夹爪控制失败: {e}")
             return False
-        
+
 # ==================== 演示函数 ====================
 def demo_basic_usage():
     """函数基本使用演示"""
@@ -279,7 +280,7 @@ def demo_basic_usage():
     if not franka.connect():
         print("❌ 连接失败，演示结束")
         return
-    
+
     FLAG = 0
 
     try:
@@ -293,7 +294,7 @@ def demo_basic_usage():
             current_pos = current_pose.translation
             current_rot = Rotation.from_quat(current_pose.quaternion).as_euler('xyz')
             target_pos = [current_pos[0] + 0.5, current_pos[1], current_pos[2]]
-            target_pose = [*target_pos, *current_rot]  
+            target_pose = [*target_pos, *current_rot]
             franka.send_cartesian_pose(target_pose)
             time.sleep(2)
             print("✅ 末端位姿绝对控制完成")
@@ -315,7 +316,7 @@ def demo_basic_usage():
             time.sleep(2)
             print("✅ 关节角度控制完成")
             franka.get_current_status(1)
-            
+
         print("当前状态")
         franka.return_to_initial_position()
         franka.get_current_status(1)
