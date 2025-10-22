@@ -105,10 +105,11 @@ class FrankaR7arm:
             else:
                 self.logger.info("❌ Robotiq 夹爪连接失败！")
 
+            # 设置连接状态
+            self.is_connected = True
+            
             # 机械臂回到初始位置
             self.return_to_initial_position()
-
-            self.is_connected = True
             return True
 
         except Exception as e:

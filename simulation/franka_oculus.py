@@ -21,8 +21,7 @@ from franka_r7arm import FrankaR7arm
 from scipy.spatial.transform import Rotation as R
 
 droid_path = Path(__file__).parent.parent / "droid"
-sys.path.insert(0, str(droid_path / "oculus_reader" / "oculus_reader"))
-from reader import OculusReader
+from oculus_reader.reader import OculusReader
 
 
 class FrankaOculusController:
@@ -75,7 +74,7 @@ class FrankaOculusController:
             return
 
         self.running = True
-        self.paused = False
+        self.paused = True
 
         # 启动Oculus数据采集线程（高优先级）
         self.oculus_thread = threading.Thread(target=self._oculus_reader_loop, daemon=True)
