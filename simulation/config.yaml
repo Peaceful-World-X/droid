@@ -3,18 +3,12 @@ environment:
   env_name: "Lift"                    # 设置仿真环境
   robots: "Panda"                     # 设置机器人
   gripper_types: "Robotiq85Gripper"   # 夹爪类型
+
   control_freq: 30                    # 控制频率
   has_renderer: true                  # 是否使用渲染环境
-  render_camera: "sideview"           # 哪个相机渲染
+  render_camera: null                 # 支持鼠标拖拽和平移改变观察视角
   has_offscreen_renderer: false       # 是否使用离线的渲染环境
   use_camera_obs: false               # 是否使用相机视角观测
-
-# 相机配置
-camera:
-  names: ["frontview", "sideview", "robot0_robotview", "robot0_eye_in_hand"]  # 多视角离线渲染
-  heights: 480  # 相机高度
-  widths: 640   # 相机宽度
-  depths: false # 是否需要渲染深度
 
 # 控制器配置
 controller:

@@ -1,11 +1,11 @@
 
 import contextlib
-import logging
 import signal
 import sys
 from pathlib import Path
 
 import numpy as np
+from loguru import logger
 from scipy.spatial.transform import Rotation as R
 
 # ———————————————————————————————————————————————————————————————————————————————————————————————————————————————————
@@ -68,42 +68,46 @@ def prevent_keyboard_interrupt():
             raise KeyboardInterrupt
 
 def setup_logger(name: str,
-                level: int = logging.INFO,
+                level: str = "INFO",
                 output: str = "both",
-                log_dir: str = Path(__file__).parent / "log",
-                mode: str = "append") -> logging.Logger:
-    """设置双输出日志系统（文件 + 控制台），支持选择输出目标和日志模式
-
+                log_dir: Path = Path(__file__).parent / "log",
+                mode: str = "append"):
+    """设置双输出日志系统（文件 + 控制台），使用 loguru
     Args:
         name: 日志记录器名称
-        level: 日志级别
+        level: 日志级别 ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
         output: 输出目标 ("file", "console", "both")
         log_dir: 日志文件目录
         mode: 日志文件模式 ("append" 追加, "overwrite" 覆盖)
     """
-    logger = logging.getLogger(name)
-    logger.setLevel(level)
-    logger.propagate = False
-    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-    if logger.handlers:
-        return logger
+    # 移除默认的 handler
+    logger.remove()
 
-    # 文件处理器：输出到 当前目录的
+    # 日志格式 - 使用固定宽度以对齐
+    log_format = "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level:<5}</level> | <cyan>{name:<10}</cyan>:<cyan>{line:<3}</cyan> - <level>{message}</level>"
+
+    # 控制台输出
+    if output in ("console", "both"):
+        logger.add(
+            sys.stdout,
+            format=log_format,
+            level=level,
+            colorize=True
+        )
+
+    # 文件输出
     if output in ("file", "both"):
         log_dir.mkdir(exist_ok=True)
-        # 根据模式选择文件打开方式
-        if mode == "overwrite":
-            file_mode = "w"  # 覆盖模式
-        else:  # 默认追加模式
-            file_mode = "a"  # 追加模式
-        file_handler = logging.FileHandler(log_dir / f"{name}.log", mode=file_mode, encoding="utf-8")
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-
-    # 控制台处理器：输出到终端
-    if output in ("console", "both"):
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setFormatter(formatter)
-        logger.addHandler(console_handler)
+        rotation = None if mode == "overwrite" else "10 MB"  # 覆盖模式不轮转
+        logger.add(
+            log_dir / f"{name}.log",
+            format=log_format,
+            level=level,
+            rotation=rotation,
+            retention="10 days",
+            compression="zip",
+            encoding="utf-8",
+            enqueue=True  # 异步写入
+        )
 
     return logger
